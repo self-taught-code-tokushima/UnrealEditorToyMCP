@@ -219,3 +219,10 @@ __marimo__/
 
 # JetBrains IDEs
 .idea/
+
+# Jetbrains Rider personal-layer settings
+*.DotSettings.user
+
+# Dev plugins to be ignored
+Plugins/MinimumEditorSubsystemPluginExtDir/
+SampleProject/Plugins/
