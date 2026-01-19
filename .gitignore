@@ -226,3 +226,6 @@ __marimo__/
 # Dev plugins to be ignored
 Plugins/MinimumEditorSubsystemPluginExtDir/
 SampleProject/Plugins/
+
+# LLM Assistant settings to be ignored
+.claude/

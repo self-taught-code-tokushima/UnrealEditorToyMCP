@@ -112,7 +112,7 @@ void FUnrealEditorMCPHttpServer::SetupRoutes()
 }
 
 bool FUnrealEditorMCPHttpServer::HandleListTools(const FHttpServerRequest& Request,
-                                                 const FHttpResultCallback& OnComplete)
+                                                 const FHttpResultCallback& OnComplete) const
 {
 	const TSharedPtr<FJsonObject> ResponseJson = MakeShared<FJsonObject>();
 	TArray<TSharedPtr<FJsonValue>> ToolsArray;

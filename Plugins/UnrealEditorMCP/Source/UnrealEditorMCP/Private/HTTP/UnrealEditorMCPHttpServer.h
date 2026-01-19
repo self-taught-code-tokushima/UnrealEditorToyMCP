@@ -22,7 +22,7 @@ private:
 	void SetupRoutes();
 
 	// Endpoint handlers
-	static bool HandleListTools(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	bool HandleListTools(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const;
 	bool HandleExecuteTool(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const;
 	bool HandleStatus(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const;
 

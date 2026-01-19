@@ -1,0 +1,42 @@
+# https://taskfile.dev
+
+version: '3'
+
+run: once
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+  
+  ue-mcp-status:
+    desc: Check Unreal Editor MCP status
+    cmds:
+      - curl http://localhost:3000/mcp/status
+  
+  ue-mcp-tools:
+    desc: List available Unreal Editor MCP tools
+    cmds:
+      - curl http://localhost:3000/mcp/tools
+  
+  ue-mcp-tool-ping:
+    desc: Ping a specific Unreal Editor MCP tool
+    cmds:
+      - |
+        curl -X POST http://localhost:3000/mcp/tool/ping -H "Content-Type: application/json" -d "{}"
+
+  mcp-server-test:
+    desc: Test the Python MCP server (connects to UE and runs ping)
+    cmds:
+      - uv run python scripts/test_mcp.py
+
+  mcp-server-run:
+    desc: Run the Python MCP server (local development)
+    cmds:
+      - uv run study-unrealeditormcp
+
+  mcp-server-run-github:
+    desc: Run the Python MCP server from GitHub (for testing published version)
+    cmds:
+      - uvx --from git+https://github.com/self-taught-code-tokushima/Study_UnrealEditorMCP study-unrealeditormcp
