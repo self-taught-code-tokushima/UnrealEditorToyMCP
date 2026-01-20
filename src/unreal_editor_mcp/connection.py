@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 
 import httpx
 
-logger = logging.getLogger("StudyUnrealEditorMCP")
+logger = logging.getLogger("UnrealEditorMCP")
 
 # Configuration - can be overridden via environment variables
 UNREAL_BASE_URL = os.getenv("UNREAL_BASE_URL", "http://localhost:3000")

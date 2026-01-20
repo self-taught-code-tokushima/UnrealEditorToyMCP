@@ -1,5 +1,5 @@
 [project]
-name = "study-unrealeditormcp"
+name = "unreal-editor-mcp"
 version = "0.1.0"
 description = "MCP server for Unreal Engine 5 Editor automation via HTTP REST API"
 readme = "README.md"
@@ -14,11 +14,11 @@ dependencies = [
 ]
 
 [project.scripts]
-study-unrealeditormcp = "study_unrealeditormcp.server:main"
+unreal-editor-mcp = "unreal_editor_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/self-taught-code-tokushima/Study_UnrealEditorMCP"
-Repository = "https://github.com/self-taught-code-tokushima/Study_UnrealEditorMCP"
+Homepage = "https://github.com/self-taught-code-tokushima/UnrealEditorToyMCP"
+Repository = "https://github.com/self-taught-code-tokushima/UnrealEditorToyMCP"
 
 [build-system]
 requires = ["uv_build>=0.9.24,<0.10.0"]

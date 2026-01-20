@@ -34,9 +34,9 @@ tasks:
   mcp-server-run:
     desc: Run the Python MCP server (local development)
     cmds:
-      - uv run study-unrealeditormcp
+      - uv run unreal-editor-mcp
 
   mcp-server-run-github:
     desc: Run the Python MCP server from GitHub (for testing published version)
     cmds:
-      - uvx --from git+https://github.com/self-taught-code-tokushima/Study_UnrealEditorMCP study-unrealeditormcp
+      - uvx --from git+https://github.com/self-taught-code-tokushima/UnrealEditorToyMCP unreal-editor-mcp

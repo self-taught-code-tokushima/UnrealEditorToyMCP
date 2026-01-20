@@ -1,5 +1,5 @@
 """
-Study UnrealEditorMCP Server
+UnrealEditorMCP Server
 
 FastMCP server for Unreal Engine 5 editor automation via HTTP REST API.
 """
@@ -22,17 +22,17 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('study_unrealeditormcp.log'),
+        logging.FileHandler('unreal_editor_mcp.log'),
         logging.StreamHandler(sys.stderr)
     ]
 )
-logger = logging.getLogger("StudyUnrealEditorMCP")
+logger = logging.getLogger("UnrealEditorMCP")
 
 
 @asynccontextmanager
 async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
     """Handle server startup and shutdown."""
-    logger.info("Study UnrealEditorMCP server starting up")
+    logger.info("UnrealEditorMCP server starting up")
 
     try:
         # Try to connect on startup
@@ -49,12 +49,12 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
         yield {}
     finally:
         reset_connection()
-        logger.info("Study UnrealEditorMCP server shut down")
+        logger.info("UnrealEditorMCP server shut down")
 
 
 # Initialize FastMCP server
 mcp = FastMCP(
-    "StudyUnrealEditorMCP",
+    "UnrealEditorMCP",
     lifespan=server_lifespan
 )
 
@@ -66,7 +66,7 @@ register_editor_tools(mcp)
 
 def main():
     """Main entry point for the MCP server."""
-    logger.info("Starting Study UnrealEditorMCP server...")
+    logger.info("Starting UnrealEditorMCP server...")
     mcp.run()
 
 

@@ -1,5 +1,5 @@
 """
-Editor Tools for Study UnrealEditorMCP.
+Editor Tools for UnrealEditorMCP.
 
 This module provides tools for interacting with the Unreal Editor via HTTP REST API.
 """
@@ -11,7 +11,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ..connection import get_connection
 
-logger = logging.getLogger("StudyUnrealEditorMCP")
+logger = logging.getLogger("UnrealEditorMCP")
 
 
 def register_editor_tools(mcp: FastMCP):
