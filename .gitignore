@@ -230,3 +230,6 @@ SampleProject/Plugins/
 # LLM Assistant settings to be ignored
 # .claude/
 .mcp.json
+.mcp.json.tmp
+mcp.json.tmp
+.serena/
