@@ -35,11 +35,12 @@ public class UnrealEditorMCP : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Slate",
-				"SlateCore", 
-				// ... add private dependencies that you statically link with here ...	
+				"SlateCore",
+				// ... add private dependencies that you statically link with here ...
 				"EditorSubsystem",  // UEditorSubsystem
 				"HTTPServer",  // HttpServerModule
-				"Json" // JSON parsing
+				"Json", // JSON parsing
+				"UnrealEd"  // GEditor access
 			]
 		);
 

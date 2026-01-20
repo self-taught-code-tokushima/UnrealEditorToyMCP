@@ -7,14 +7,10 @@
       "Bash(dir:*)",
       "Bash(uv:*)",
       "Bash(task:*)",
-      "Bash(findstr:*)",
-      "Bash(pwsh:*)",
       "WebSearch",
+      "Bash(serena:*)",
       "mcp__ue_editor_mcp_dev",
-      "mcp__serena-self",
-      "mcp__context7",
-      "mcp__serena-unreal-claude",
-      "mcp__serena-unrealwise"
+      "mcp__serena-self"
     ]
   },
   "enableAllProjectMcpServers": true,

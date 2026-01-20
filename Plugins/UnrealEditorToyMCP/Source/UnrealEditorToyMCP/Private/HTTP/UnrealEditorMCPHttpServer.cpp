@@ -2,6 +2,10 @@
 
 #include "UnrealEditorMCPHttpServer.h"
 #include "HttpServerModule.h"
+#include "Editor.h"                    // GEditor
+#include "Engine/World.h"              // UWorld
+#include "GameFramework/Actor.h"       // AActor
+#include "Kismet/GameplayStatics.h"    // UGameplayStatics
 
 
 FUnrealEditorMCPHttpServer::FUnrealEditorMCPHttpServer()
@@ -126,6 +130,14 @@ bool FUnrealEditorMCPHttpServer::HandleListTools(const FHttpServerRequest& Reque
 		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
 	}
 
+	// Tool: get_actors_in_level
+	{
+		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
+		ToolJson->SetStringField(TEXT("name"), TEXT("get_actors_in_level"));
+		ToolJson->SetStringField(TEXT("description"), TEXT("Get all actors in the current editor level"));
+		ToolJson->SetArrayField(TEXT("parameters"), TArray<TSharedPtr<FJsonValue>>());
+		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
+	}
 
 	ResponseJson->SetArrayField(TEXT("tools"), ToolsArray);
 
@@ -200,6 +212,68 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 			          const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultString);
 			          FJsonSerializer::Serialize(Result.ToSharedRef(), Writer);
 		          }
+		          else if (CommandName == TEXT("get_actors_in_level"))
+		          {
+			          TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+			          TArray<TSharedPtr<FJsonValue>> ActorsArray;
+
+			          UWorld* EditorWorld = nullptr;
+			          if (GEditor)
+			          {
+				          EditorWorld = GEditor->GetEditorWorldContext().World();
+			          }
+
+			          if (EditorWorld)
+			          {
+				          TArray<AActor*> AllActors;
+				          UGameplayStatics::GetAllActorsOfClass(EditorWorld, AActor::StaticClass(), AllActors);
+
+				          for (AActor* Actor : AllActors)
+				          {
+					          if (!Actor) continue;
+
+					          TSharedPtr<FJsonObject> ActorJson = MakeShared<FJsonObject>();
+					          ActorJson->SetStringField(TEXT("name"), Actor->GetName());
+					          ActorJson->SetStringField(TEXT("class"), Actor->GetClass()->GetName());
+
+					          // Location
+					          FVector Location = Actor->GetActorLocation();
+					          TSharedPtr<FJsonObject> LocationJson = MakeShared<FJsonObject>();
+					          LocationJson->SetNumberField(TEXT("x"), Location.X);
+					          LocationJson->SetNumberField(TEXT("y"), Location.Y);
+					          LocationJson->SetNumberField(TEXT("z"), Location.Z);
+					          ActorJson->SetObjectField(TEXT("location"), LocationJson);
+
+					          // Rotation
+					          FRotator Rotation = Actor->GetActorRotation();
+					          TSharedPtr<FJsonObject> RotationJson = MakeShared<FJsonObject>();
+					          RotationJson->SetNumberField(TEXT("pitch"), Rotation.Pitch);
+					          RotationJson->SetNumberField(TEXT("yaw"), Rotation.Yaw);
+					          RotationJson->SetNumberField(TEXT("roll"), Rotation.Roll);
+					          ActorJson->SetObjectField(TEXT("rotation"), RotationJson);
+
+					          // Scale
+					          FVector Scale = Actor->GetActorScale3D();
+					          TSharedPtr<FJsonObject> ScaleJson = MakeShared<FJsonObject>();
+					          ScaleJson->SetNumberField(TEXT("x"), Scale.X);
+					          ScaleJson->SetNumberField(TEXT("y"), Scale.Y);
+					          ScaleJson->SetNumberField(TEXT("z"), Scale.Z);
+					          ActorJson->SetObjectField(TEXT("scale"), ScaleJson);
+
+					          ActorsArray.Add(MakeShared<FJsonValueObject>(ActorJson));
+				          }
+
+				          Result->SetArrayField(TEXT("actors"), ActorsArray);
+				          Result->SetNumberField(TEXT("count"), ActorsArray.Num());
+			          }
+			          else
+			          {
+				          Result->SetStringField(TEXT("error"), TEXT("Failed to get editor world"));
+			          }
+
+			          TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultString);
+			          FJsonSerializer::Serialize(Result.ToSharedRef(), Writer);
+		          }
 
 		          // Build response
 		          TSharedPtr<FJsonObject> ResponseJson = MakeShared<FJsonObject>();
@@ -236,7 +310,7 @@ bool FUnrealEditorMCPHttpServer::HandleStatus(const FHttpServerRequest& Request,
 	ResponseJson->SetNumberField(TEXT("httpPort"), ServerPort);
 	ResponseJson->SetNumberField(TEXT("socketPort"), 55557); // Socket server port
 	ResponseJson->SetStringField(TEXT("version"), TEXT("1.0.0"));
-	ResponseJson->SetNumberField(TEXT("toolCount"), 3);
+	ResponseJson->SetNumberField(TEXT("toolCount"), 2);  // ping + get_actors_in_level
 
 	// Add tools list
 	TArray<TSharedPtr<FJsonValue>> ToolsArray;
