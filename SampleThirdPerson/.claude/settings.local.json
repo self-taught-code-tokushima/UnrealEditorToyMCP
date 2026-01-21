@@ -15,8 +15,6 @@
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "ue_editor_mcp_dev",
-    "serena-self",
-    "context7"
+    "ue_editor_mcp_dev"
   ]
 }

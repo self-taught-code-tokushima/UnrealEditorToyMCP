@@ -228,7 +228,7 @@ Plugins/MinimumEditorSubsystemPluginExtDir/
 SampleProject/Plugins/
 
 # LLM Assistant settings to be ignored
-# .claude/
+.claude/tmp/
 .mcp.json
 .mcp.json.tmp
 mcp.json.tmp

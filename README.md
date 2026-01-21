@@ -45,14 +45,25 @@ UnrealEditorToyMCP/
 │   └── unreal_editor_mcp/
 │       ├── server.py                 # MCP サーバーのメインファイル
 │       ├── connection.py             # Unreal Editor との接続管理
-│       └── tools/
-│           └── editor_tools.py       # Claude から使えるツール定義
+│       └── tools/                    # Command パターンでツールを管理
+│           ├── base.py               # EditorTool 抽象基底クラス
+│           ├── registry.py           # ツールレジストリ
+│           ├── editor_tools.py       # ツール登録関数
+│           ├── ping_tool.py          # Ping ツール
+│           ├── get_actors_tool.py    # GetActors ツール
+│           └── execute_python_tool.py # ExecutePython ツール
 │
 ├── Plugins/                          # Unreal Engine プラグイン
 │   └── UnrealEditorMCP/              # Unreal Editor 操作用プラグイン
 │       ├── Source/                   # C++ ソースコード
 │       │   └── UnrealEditorMCP/
 │       │       ├── Private/
+│       │       │   ├── Commands/     # Command パターンで機能を管理
+│       │       │   │   ├── IEditorCommand.h/cpp        # コマンド基底インターフェース
+│       │       │   │   ├── EditorCommandRegistry.h/cpp # コマンドレジストリ
+│       │       │   │   ├── PingCommand.h/cpp           # Ping コマンド
+│       │       │   │   ├── GetActorsInLevelCommand.h/cpp
+│       │       │   │   └── ExecutePythonCommand.h/cpp
 │       │       │   ├── HTTP/         # HTTP サーバー実装
 │       │       │   └── UnrealEditorMCPSubsystem.cpp
 │       │       └── Public/
@@ -244,34 +255,89 @@ task --list
 
 ### 新しいツールを追加する
 
-#### 1. Unreal Editor プラグイン側に機能を追加
+このプロジェクトでは **Command パターン** を採用しており、新しいツールの追加が簡単です。
 
-Unreal Editor 側で実行したい機能を C++ で実装します。
+#### 1. C++ 側: Unreal Editor プラグインにコマンドを追加
 
-ファイル: `Plugins/UnrealEditorMCP/Source/UnrealEditorMCP/Private/HTTP/UnrealEditorMCPHttpServer.cpp`
+**手順:**
 
-#### 2. MCP サーバー側にツールを追加
+1. **コマンドクラスを作成** (`YourCommand.h` と `YourCommand.cpp`)
 
-Python MCP サーバーに新しいツールを定義します。
+   ```cpp
+   // YourCommand.h
+   #pragma once
+   #include "CoreMinimal.h"
+   #include "IEditorCommand.h"
 
-ファイル: `src/unreal_editor_mcp/tools/editor_tools.py`
+   class FYourCommand : public IEditorCommand
+   {
+   public:
+       virtual FString GetName() const override;
+       virtual FString GetDescription() const override;
+       virtual TArray<FCommandParameter> GetParameters() const override;
+       virtual FString Execute(const TSharedPtr<FJsonObject>& Params) override;
+   };
+   ```
 
-```python
-@mcp.tool()
-async def my_new_tool(param: str) -> str:
-    """
-    新しいツールの説明
+   配置先: `Plugins/UnrealEditorMCP/Source/UnrealEditorToyMCP/Private/Commands/`
 
-    Args:
-        param: パラメータの説明
+2. **HTTPサーバーに登録** (`UnrealEditorMCPHttpServer.cpp` のコンストラクタに1行追加)
 
-    Returns:
-        結果の説明
-    """
-    conn = get_connection()
-    response = await conn.call_endpoint("/my-endpoint", {"param": param})
-    return response
-```
+   ```cpp
+   CommandRegistry->RegisterCommand(MakeShared<FYourCommand>());
+   ```
+
+**それだけです！** コマンドは自動的にツールリストに追加され、HTTP エンドポイント `/mcp/tool/your_command` で利用可能になります。
+
+---
+
+#### 2. Python 側: MCP サーバーにツールを追加
+
+**手順:**
+
+1. **ツールクラスを作成** (`your_tool.py`)
+
+   ```python
+   # src/unreal_editor_mcp/tools/your_tool.py
+   from typing import Dict, Any
+   from .base import EditorTool
+
+   class YourTool(EditorTool):
+       @property
+       def name(self) -> str:
+           return "your_tool"
+
+       @property
+       def description(self) -> str:
+           return """Your tool description.
+
+   Args:
+       param: Parameter description
+
+   Returns:
+       Result description"""
+
+       def execute(self, param: str = "") -> Dict[str, Any]:
+           response = self.call_unreal_tool("your_command", {"param": param})
+           if response.get("success"):
+               data = response.get("data", {})
+               return {"success": True, "result": data}
+           return {"success": False, "error": response.get("error")}
+   ```
+
+2. **ツールを登録** (`editor_tools.py` に2行追加)
+
+   ```python
+   # インポート文を追加
+   from .your_tool import YourTool
+
+   # register_editor_tools() 関数内に追加
+   registry.register_tool(YourTool())
+   ```
+
+**それだけです！** ツールは自動的に MCP サーバーに登録され、Claude から使用可能になります。
+
+---
 
 #### 3. テストする
 

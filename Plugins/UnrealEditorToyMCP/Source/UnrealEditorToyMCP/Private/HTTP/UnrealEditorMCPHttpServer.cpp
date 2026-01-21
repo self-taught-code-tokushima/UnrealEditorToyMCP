@@ -1,7 +1,10 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "UnrealEditorMCPHttpServer.h"
-#include "Commands/EditorCommands.h"
+#include "Commands/EditorCommandRegistry.h"
+#include "Commands/PingCommand.h"
+#include "Commands/GetActorsInLevelCommand.h"
+#include "Commands/ExecutePythonCommand.h"
 #include "HttpServerModule.h"
 #include "Editor.h"                    // GEditor
 #include "Engine/World.h"              // UWorld
@@ -13,7 +16,15 @@ FUnrealEditorMCPHttpServer::FUnrealEditorMCPHttpServer()
 	: bIsRunning(false)
 	  , ServerPort(0)
 {
-	EditorCommands = MakeUnique<FEditorCommands>();
+	// Initialize command registry
+	CommandRegistry = MakeUnique<FEditorCommandRegistry>();
+
+	// Register all commands
+	CommandRegistry->RegisterCommand(MakeShared<FPingCommand>());
+	CommandRegistry->RegisterCommand(MakeShared<FGetActorsInLevelCommand>());
+	CommandRegistry->RegisterCommand(MakeShared<FExecutePythonCommand>());
+
+	UE_LOG(LogTemp, Display, TEXT("UnrealEditorMCP: Registered %d commands"), CommandRegistry->GetCommandCount());
 }
 
 FUnrealEditorMCPHttpServer::~FUnrealEditorMCPHttpServer()
@@ -123,53 +134,30 @@ bool FUnrealEditorMCPHttpServer::HandleListTools(const FHttpServerRequest& Reque
 	const TSharedPtr<FJsonObject> ResponseJson = MakeShared<FJsonObject>();
 	TArray<TSharedPtr<FJsonValue>> ToolsArray;
 
-	// Tool: ping
+	// Dynamically generate tools list from registered commands
+	TArray<TSharedPtr<IEditorCommand>> AllCommands = CommandRegistry->GetAllCommands();
+	for (const TSharedPtr<IEditorCommand>& Command : AllCommands)
 	{
-		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), TEXT("ping"));
-		ToolJson->SetStringField(TEXT("description"), TEXT("Test server connectivity"));
-		ToolJson->SetArrayField(TEXT("parameters"), TArray<TSharedPtr<FJsonValue>>());
-		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
-	}
+		if (!Command.IsValid()) continue;
 
-	// Tool: get_actors_in_level
-	{
 		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), TEXT("get_actors_in_level"));
-		ToolJson->SetStringField(TEXT("description"), TEXT("Get all actors in the current editor level"));
-		ToolJson->SetArrayField(TEXT("parameters"), TArray<TSharedPtr<FJsonValue>>());
-		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
-	}
+		ToolJson->SetStringField(TEXT("name"), Command->GetName());
+		ToolJson->SetStringField(TEXT("description"), Command->GetDescription());
 
-	// Tool: execute_python
-	{
-		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), TEXT("execute_python"));
-		ToolJson->SetStringField(TEXT("description"), TEXT("Execute a Python script in the Unreal Editor"));
-
+		// Build parameters array
 		TArray<TSharedPtr<FJsonValue>> ParamsArray;
-
-		// script_content (required)
+		TArray<FCommandParameter> Parameters = Command->GetParameters();
+		for (const FCommandParameter& Param : Parameters)
 		{
 			TSharedPtr<FJsonObject> ParamJson = MakeShared<FJsonObject>();
-			ParamJson->SetStringField(TEXT("name"), TEXT("script_content"));
-			ParamJson->SetStringField(TEXT("type"), TEXT("string"));
-			ParamJson->SetBoolField(TEXT("required"), true);
-			ParamJson->SetStringField(TEXT("description"), TEXT("Python script content to execute"));
+			ParamJson->SetStringField(TEXT("name"), Param.Name);
+			ParamJson->SetStringField(TEXT("type"), Param.Type);
+			ParamJson->SetBoolField(TEXT("required"), Param.bRequired);
+			ParamJson->SetStringField(TEXT("description"), Param.Description);
 			ParamsArray.Add(MakeShared<FJsonValueObject>(ParamJson));
 		}
-
-		// script_name (optional)
-		{
-			TSharedPtr<FJsonObject> ParamJson = MakeShared<FJsonObject>();
-			ParamJson->SetStringField(TEXT("name"), TEXT("script_name"));
-			ParamJson->SetStringField(TEXT("type"), TEXT("string"));
-			ParamJson->SetBoolField(TEXT("required"), false);
-			ParamJson->SetStringField(TEXT("description"), TEXT("Optional script name (auto-generated if not provided)"));
-			ParamsArray.Add(MakeShared<FJsonValueObject>(ParamJson));
-		}
-
 		ToolJson->SetArrayField(TEXT("parameters"), ParamsArray);
+
 		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
 	}
 
@@ -233,12 +221,37 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 		}
 	}
 
-	// 3. Execute command on GameThread asynchronously
+	// 3. Check if command exists
+	if (!CommandRegistry->HasCommand(CommandName))
+	{
+		UE_LOG(LogTemp, Error, TEXT("UnrealEditorMCP HTTP: Unknown command: %s"), *CommandName);
+		OnComplete(CreateErrorResponse(
+			FString::Printf(TEXT("Unknown command: %s"), *CommandName),
+			EHttpServerResponseCodes::NotFound));
+		return true;
+	}
+
+	// 4. Execute command on GameThread asynchronously
 	AsyncTask(ENamedThreads::GameThread,
 	          [this, CommandName, ParamsJson, OnComplete]()
 	          {
-		          // Execute command via EditorCommands
-		          FString ResultString = EditorCommands->Execute(CommandName, ParamsJson);
+		          // Get command from registry
+		          TSharedPtr<IEditorCommand> Command = CommandRegistry->GetCommand(CommandName);
+		          if (!Command.IsValid())
+		          {
+			          TSharedPtr<FJsonObject> ErrorJson = MakeShared<FJsonObject>();
+			          ErrorJson->SetBoolField(TEXT("success"), false);
+			          ErrorJson->SetStringField(TEXT("error"), TEXT("Command not found in registry"));
+
+			          FString JsonString;
+			          TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
+			          FJsonSerializer::Serialize(ErrorJson.ToSharedRef(), Writer);
+			          OnComplete(CreateJsonResponse(JsonString));
+			          return;
+		          }
+
+		          // Execute command
+		          FString ResultString = Command->Execute(ParamsJson);
 
 		          // Build response
 		          TSharedPtr<FJsonObject> ResponseJson = MakeShared<FJsonObject>();
@@ -275,26 +288,18 @@ bool FUnrealEditorMCPHttpServer::HandleStatus(const FHttpServerRequest& Request,
 	ResponseJson->SetNumberField(TEXT("httpPort"), ServerPort);
 	ResponseJson->SetNumberField(TEXT("socketPort"), 55557); // Socket server port
 	ResponseJson->SetStringField(TEXT("version"), TEXT("1.0.0"));
-	ResponseJson->SetNumberField(TEXT("toolCount"), 3);  // ping + get_actors_in_level + execute_python
+	ResponseJson->SetNumberField(TEXT("toolCount"), CommandRegistry->GetCommandCount());
 
-	// Add tools list
+	// Dynamically generate tools list from registered commands
 	TArray<TSharedPtr<FJsonValue>> ToolsArray;
+	TArray<TSharedPtr<IEditorCommand>> AllCommands = CommandRegistry->GetAllCommands();
+	for (const TSharedPtr<IEditorCommand>& Command : AllCommands)
 	{
+		if (!Command.IsValid()) continue;
+
 		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), TEXT("ping"));
-		ToolJson->SetStringField(TEXT("description"), TEXT("Test server connectivity"));
-		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
-	}
-	{
-		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), TEXT("get_actors_in_level"));
-		ToolJson->SetStringField(TEXT("description"), TEXT("Get all actors in the current editor level"));
-		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
-	}
-	{
-		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), TEXT("execute_python"));
-		ToolJson->SetStringField(TEXT("description"), TEXT("Execute a Python script in the Unreal Editor"));
+		ToolJson->SetStringField(TEXT("name"), Command->GetName());
+		ToolJson->SetStringField(TEXT("description"), Command->GetDescription());
 		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
 	}
 	ResponseJson->SetArrayField(TEXT("tools"), ToolsArray);

@@ -120,13 +120,13 @@ private:
 
 ```bash
 # Build from command line
-"C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" MyProjectEditor Win64 Development "C:\Projects\MyProject\MyProject.uproject" -WaitMutex
+"D:\UE\UE_5.7\Engine\Build\BatchFiles\Build.bat" MyProjectEditor Win64 Development "C:\Projects\MyProject\MyProject.uproject" -WaitMutex
 
 # Cook content
-"C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Projects\MyProject\MyProject.uproject" -run=cook -targetplatform=Windows
+"D:\UE\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Projects\MyProject\MyProject.uproject" -run=cook -targetplatform=Windows
 
 # Generate project files
-"C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.exe" -projectfiles -project="C:\Projects\MyProject\MyProject.uproject" -game -rocket -progress
+"D:\UE\UE_5.7\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.exe" -projectfiles -project="C:\Projects\MyProject\MyProject.uproject" -game -rocket -progress
 ```
 
 ## Common File Locations

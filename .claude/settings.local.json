@@ -9,13 +9,16 @@
       "Bash(task:*)",
       "Bash(findstr:*)",
       "Bash(pwsh:*)",
-      "WebSearch",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
       "mcp__ue_editor_mcp_dev",
       "mcp__serena-self",
       "mcp__context7",
       "mcp__serena-unreal-claude",
       "mcp__serena-unreal-mini",
-      "mcp__serena-unrealwise"
+      "mcp__serena-unrealwise",
+      "WebSearch",
+      "WebFetch(domain:github.com)"
     ]
   },
   "enableAllProjectMcpServers": true,

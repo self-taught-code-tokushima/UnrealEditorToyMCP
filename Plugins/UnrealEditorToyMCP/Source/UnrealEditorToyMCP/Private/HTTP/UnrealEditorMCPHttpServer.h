@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "IHttpRouter.h"
 
-class FEditorCommands;
+class FEditorCommandRegistry;
 
 class FUnrealEditorMCPHttpServer
 {
@@ -38,8 +38,8 @@ private:
 	FHttpRouteHandle ExecuteToolHandle;
 	FHttpRouteHandle StatusHandle;
 
-	// Command executor
-	TUniquePtr<FEditorCommands> EditorCommands;
+	// Command registry
+	TUniquePtr<FEditorCommandRegistry> CommandRegistry;
 
 	// Server state
 	bool bIsRunning;
