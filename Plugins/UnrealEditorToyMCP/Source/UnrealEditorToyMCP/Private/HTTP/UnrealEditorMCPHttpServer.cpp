@@ -1,6 +1,10 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "UnrealEditorMCPHttpServer.h"
+#include "Commands/EditorCommandRegistry.h"
+#include "Commands/PingCommand.h"
+#include "Commands/GetActorsInLevelCommand.h"
+#include "Commands/ExecutePythonCommand.h"
 #include "HttpServerModule.h"
 #include "Editor.h"                    // GEditor
 #include "Engine/World.h"              // UWorld
@@ -12,6 +16,15 @@ FUnrealEditorMCPHttpServer::FUnrealEditorMCPHttpServer()
 	: bIsRunning(false)
 	  , ServerPort(0)
 {
+	// Initialize command registry
+	CommandRegistry = MakeUnique<FEditorCommandRegistry>();
+
+	// Register all commands
+	CommandRegistry->RegisterCommand(MakeShared<FPingCommand>());
+	CommandRegistry->RegisterCommand(MakeShared<FGetActorsInLevelCommand>());
+	CommandRegistry->RegisterCommand(MakeShared<FExecutePythonCommand>());
+
+	UE_LOG(LogTemp, Display, TEXT("UnrealEditorMCP: Registered %d commands"), CommandRegistry->GetCommandCount());
 }
 
 FUnrealEditorMCPHttpServer::~FUnrealEditorMCPHttpServer()
@@ -121,21 +134,30 @@ bool FUnrealEditorMCPHttpServer::HandleListTools(const FHttpServerRequest& Reque
 	const TSharedPtr<FJsonObject> ResponseJson = MakeShared<FJsonObject>();
 	TArray<TSharedPtr<FJsonValue>> ToolsArray;
 
-	// Tool: ping
+	// Dynamically generate tools list from registered commands
+	TArray<TSharedPtr<IEditorCommand>> AllCommands = CommandRegistry->GetAllCommands();
+	for (const TSharedPtr<IEditorCommand>& Command : AllCommands)
 	{
-		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), TEXT("ping"));
-		ToolJson->SetStringField(TEXT("description"), TEXT("Test server connectivity"));
-		ToolJson->SetArrayField(TEXT("parameters"), TArray<TSharedPtr<FJsonValue>>());
-		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
-	}
+		if (!Command.IsValid()) continue;
 
-	// Tool: get_actors_in_level
-	{
 		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), TEXT("get_actors_in_level"));
-		ToolJson->SetStringField(TEXT("description"), TEXT("Get all actors in the current editor level"));
-		ToolJson->SetArrayField(TEXT("parameters"), TArray<TSharedPtr<FJsonValue>>());
+		ToolJson->SetStringField(TEXT("name"), Command->GetName());
+		ToolJson->SetStringField(TEXT("description"), Command->GetDescription());
+
+		// Build parameters array
+		TArray<TSharedPtr<FJsonValue>> ParamsArray;
+		TArray<FCommandParameter> Parameters = Command->GetParameters();
+		for (const FCommandParameter& Param : Parameters)
+		{
+			TSharedPtr<FJsonObject> ParamJson = MakeShared<FJsonObject>();
+			ParamJson->SetStringField(TEXT("name"), Param.Name);
+			ParamJson->SetStringField(TEXT("type"), Param.Type);
+			ParamJson->SetBoolField(TEXT("required"), Param.bRequired);
+			ParamJson->SetStringField(TEXT("description"), Param.Description);
+			ParamsArray.Add(MakeShared<FJsonValueObject>(ParamJson));
+		}
+		ToolJson->SetArrayField(TEXT("parameters"), ParamsArray);
+
 		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
 	}
 
@@ -199,81 +221,37 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 		}
 	}
 
-	// 3. Execute command on GameThread asynchronously
+	// 3. Check if command exists
+	if (!CommandRegistry->HasCommand(CommandName))
+	{
+		UE_LOG(LogTemp, Error, TEXT("UnrealEditorMCP HTTP: Unknown command: %s"), *CommandName);
+		OnComplete(CreateErrorResponse(
+			FString::Printf(TEXT("Unknown command: %s"), *CommandName),
+			EHttpServerResponseCodes::NotFound));
+		return true;
+	}
+
+	// 4. Execute command on GameThread asynchronously
 	AsyncTask(ENamedThreads::GameThread,
 	          [this, CommandName, ParamsJson, OnComplete]()
 	          {
-		          FString ResultString;
-		          if (CommandName == TEXT("ping"))
+		          // Get command from registry
+		          TSharedPtr<IEditorCommand> Command = CommandRegistry->GetCommand(CommandName);
+		          if (!Command.IsValid())
 		          {
-			          const TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
-			          Result->SetStringField(TEXT("message"), TEXT("pong"));
+			          TSharedPtr<FJsonObject> ErrorJson = MakeShared<FJsonObject>();
+			          ErrorJson->SetBoolField(TEXT("success"), false);
+			          ErrorJson->SetStringField(TEXT("error"), TEXT("Command not found in registry"));
 
-			          const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultString);
-			          FJsonSerializer::Serialize(Result.ToSharedRef(), Writer);
+			          FString JsonString;
+			          TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
+			          FJsonSerializer::Serialize(ErrorJson.ToSharedRef(), Writer);
+			          OnComplete(CreateJsonResponse(JsonString));
+			          return;
 		          }
-		          else if (CommandName == TEXT("get_actors_in_level"))
-		          {
-			          TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
-			          TArray<TSharedPtr<FJsonValue>> ActorsArray;
 
-			          UWorld* EditorWorld = nullptr;
-			          if (GEditor)
-			          {
-				          EditorWorld = GEditor->GetEditorWorldContext().World();
-			          }
-
-			          if (EditorWorld)
-			          {
-				          TArray<AActor*> AllActors;
-				          UGameplayStatics::GetAllActorsOfClass(EditorWorld, AActor::StaticClass(), AllActors);
-
-				          for (AActor* Actor : AllActors)
-				          {
-					          if (!Actor) continue;
-
-					          TSharedPtr<FJsonObject> ActorJson = MakeShared<FJsonObject>();
-					          ActorJson->SetStringField(TEXT("name"), Actor->GetName());
-					          ActorJson->SetStringField(TEXT("class"), Actor->GetClass()->GetName());
-
-					          // Location
-					          FVector Location = Actor->GetActorLocation();
-					          TSharedPtr<FJsonObject> LocationJson = MakeShared<FJsonObject>();
-					          LocationJson->SetNumberField(TEXT("x"), Location.X);
-					          LocationJson->SetNumberField(TEXT("y"), Location.Y);
-					          LocationJson->SetNumberField(TEXT("z"), Location.Z);
-					          ActorJson->SetObjectField(TEXT("location"), LocationJson);
-
-					          // Rotation
-					          FRotator Rotation = Actor->GetActorRotation();
-					          TSharedPtr<FJsonObject> RotationJson = MakeShared<FJsonObject>();
-					          RotationJson->SetNumberField(TEXT("pitch"), Rotation.Pitch);
-					          RotationJson->SetNumberField(TEXT("yaw"), Rotation.Yaw);
-					          RotationJson->SetNumberField(TEXT("roll"), Rotation.Roll);
-					          ActorJson->SetObjectField(TEXT("rotation"), RotationJson);
-
-					          // Scale
-					          FVector Scale = Actor->GetActorScale3D();
-					          TSharedPtr<FJsonObject> ScaleJson = MakeShared<FJsonObject>();
-					          ScaleJson->SetNumberField(TEXT("x"), Scale.X);
-					          ScaleJson->SetNumberField(TEXT("y"), Scale.Y);
-					          ScaleJson->SetNumberField(TEXT("z"), Scale.Z);
-					          ActorJson->SetObjectField(TEXT("scale"), ScaleJson);
-
-					          ActorsArray.Add(MakeShared<FJsonValueObject>(ActorJson));
-				          }
-
-				          Result->SetArrayField(TEXT("actors"), ActorsArray);
-				          Result->SetNumberField(TEXT("count"), ActorsArray.Num());
-			          }
-			          else
-			          {
-				          Result->SetStringField(TEXT("error"), TEXT("Failed to get editor world"));
-			          }
-
-			          TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultString);
-			          FJsonSerializer::Serialize(Result.ToSharedRef(), Writer);
-		          }
+		          // Execute command
+		          FString ResultString = Command->Execute(ParamsJson);
 
 		          // Build response
 		          TSharedPtr<FJsonObject> ResponseJson = MakeShared<FJsonObject>();
@@ -310,20 +288,18 @@ bool FUnrealEditorMCPHttpServer::HandleStatus(const FHttpServerRequest& Request,
 	ResponseJson->SetNumberField(TEXT("httpPort"), ServerPort);
 	ResponseJson->SetNumberField(TEXT("socketPort"), 55557); // Socket server port
 	ResponseJson->SetStringField(TEXT("version"), TEXT("1.0.0"));
-	ResponseJson->SetNumberField(TEXT("toolCount"), 2);  // ping + get_actors_in_level
+	ResponseJson->SetNumberField(TEXT("toolCount"), CommandRegistry->GetCommandCount());
 
-	// Add tools list
+	// Dynamically generate tools list from registered commands
 	TArray<TSharedPtr<FJsonValue>> ToolsArray;
+	TArray<TSharedPtr<IEditorCommand>> AllCommands = CommandRegistry->GetAllCommands();
+	for (const TSharedPtr<IEditorCommand>& Command : AllCommands)
 	{
+		if (!Command.IsValid()) continue;
+
 		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), TEXT("get_actors_in_level"));
-		ToolJson->SetStringField(TEXT("description"), TEXT("Get all actors in the current editor level"));
-		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
-	}
-	{
-		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), TEXT("ping"));
-		ToolJson->SetStringField(TEXT("description"), TEXT("Test server connectivity"));
+		ToolJson->SetStringField(TEXT("name"), Command->GetName());
+		ToolJson->SetStringField(TEXT("description"), Command->GetDescription());
 		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
 	}
 	ResponseJson->SetArrayField(TEXT("tools"), ToolsArray);

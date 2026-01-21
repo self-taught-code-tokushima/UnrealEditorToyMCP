@@ -1,97 +1,46 @@
 """
 Editor Tools for UnrealEditorMCP.
 
-This module provides tools for interacting with the Unreal Editor via HTTP REST API.
+This module provides the registration function for editor tools using
+the Command pattern with a tool registry.
 """
 
 import logging
-from typing import Dict, Any
 
 from mcp.server.fastmcp import FastMCP
 
-from ..connection import get_connection
+from .registry import ToolRegistry
+from .ping_tool import PingTool
+from .get_actors_tool import GetActorsInLevelTool
+from .execute_python_tool import ExecutePythonTool
 
 logger = logging.getLogger("UnrealEditorMCP")
 
 
 def register_editor_tools(mcp: FastMCP):
-    """Register editor tools with the MCP server."""
+    """Register editor tools with the MCP server.
 
-    @mcp.tool()
-    def ping() -> Dict[str, Any]:
-        """Ping the Unreal Engine to check connection.
+    This function creates a tool registry, registers all available tools,
+    and then registers them with the FastMCP server.
 
-        Returns:
-            Dictionary containing:
-            - success: Whether the ping succeeded
-            - message: Response message from Unreal Engine
-        """
-        try:
-            conn = get_connection()
-            if not conn:
-                return {
-                    "success": False,
-                    "error": "Failed to get Unreal connection"
-                }
+    To add a new tool:
+    1. Create a new tool class that inherits from EditorTool
+    2. Add the import statement above
+    3. Add registry.register_tool(YourNewTool()) below
 
-            response = conn.call_tool("ping", {})
+    Args:
+        mcp: FastMCP server instance
+    """
+    # Create tool registry
+    registry = ToolRegistry()
+    logger.info(f"Registering editor tools")
 
-            if not response:
-                return {
-                    "success": False,
-                    "error": "No response from Unreal Engine"
-                }
+    # Register all tools
+    registry.register_tool(PingTool())
+    registry.register_tool(GetActorsInLevelTool())
+    registry.register_tool(ExecutePythonTool())
 
-            # Response format: {"success": true, "message": "...", "data": {"message": "pong"}}
-            if response.get("success"):
-                data = response.get("data", {})
-                return {
-                    "success": True,
-                    "message": data.get("message", "pong")
-                }
+    # Register all tools with FastMCP
+    registry.register_with_mcp(mcp)
 
-            return {
-                "success": False,
-                "error": response.get("error", "Unknown error")
-            }
-
-        except Exception as e:
-            logger.error(f"Error pinging Unreal: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    @mcp.tool()
-    def get_actors_in_level() -> Dict[str, Any]:
-        """Get all actors in the current editor level.
-
-        Returns:
-            Dictionary containing:
-            - success: Whether the operation succeeded
-            - actors: List of actor information (name, class, location, rotation, scale)
-            - count: Number of actors returned
-        """
-        try:
-            conn = get_connection()
-            if not conn:
-                return {"success": False, "error": "Failed to get Unreal connection"}
-
-            response = conn.call_tool("get_actors_in_level", {})
-
-            if not response:
-                return {"success": False, "error": "No response from Unreal Engine"}
-
-            if response.get("success"):
-                data = response.get("data", {})
-                return {
-                    "success": True,
-                    "actors": data.get("actors", []),
-                    "count": data.get("count", 0)
-                }
-
-            return {"success": False, "error": response.get("error", "Unknown error")}
-
-        except Exception as e:
-            logger.error(f"Error getting actors in level: {e}")
-            return {"success": False, "error": str(e)}
+    logger.info(f"Registered {registry.get_tool_count()} editor tools")
