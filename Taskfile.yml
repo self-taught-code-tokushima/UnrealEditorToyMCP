@@ -4,39 +4,105 @@ version: '3'
 
 run: once
 
+vars:
+  # Unreal Engine paths
+  UE_ENGINE_PATH: D:\UE\UE_5.7
+  UE_BUILD_BAT: "{{.UE_ENGINE_PATH}}\\Engine\\Build\\BatchFiles\\Build.bat"
+
+  # Project configuration
+  PROJECT_NAME: SampleProject
+  PROJECT_PATH: "{{.ROOT_DIR}}\\{{.PROJECT_NAME}}\\{{.PROJECT_NAME}}.uproject"
+  BUILD_TARGET: "{{.PROJECT_NAME}}Editor"
+  BUILD_PLATFORM: Win64
+  BUILD_CONFIG: Development
+
+  # MCP Server configuration
+  MCP_SERVER_URL: http://localhost:3000
+  MCP_API_BASE: "{{.MCP_SERVER_URL}}/mcp"
+
+  # Temporary files
+  TMP_DIR: "{{.ROOT_DIR}}\\.claude\\tmp"
+
 tasks:
   default:
     desc: Show available tasks
     cmds:
       - task --list
-  
-  ue-mcp-status:
-    desc: Check Unreal Editor MCP status
-    cmds:
-      - curl http://localhost:3000/mcp/status
-  
-  ue-mcp-tools:
-    desc: List available Unreal Editor MCP tools
-    cmds:
-      - curl http://localhost:3000/mcp/tools
-  
-  ue-mcp-tool-ping:
-    desc: Ping a specific Unreal Editor MCP tool
+
+  # ========================================
+  # Build Tasks
+  # ========================================
+
+  build:plugin:
+    desc: Build the Unreal Editor MCP plugin
     cmds:
       - |
-        curl -X POST http://localhost:3000/mcp/tool/ping -H "Content-Type: application/json" -d "{}"
+        pwsh -Command "& '{{.UE_BUILD_BAT}}' {{.BUILD_TARGET}} {{.BUILD_PLATFORM}} {{.BUILD_CONFIG}} '{{.PROJECT_PATH}}' -WaitMutex"
 
-  mcp-server-test:
+  # Alias for backward compatibility
+  build:
+    desc: Build the Unreal Editor MCP plugin (alias for build:plugin)
+    cmds:
+      - task: build:plugin
+
+  # ========================================
+  # Test Tasks (HTTP Endpoints)
+  # ========================================
+
+  test:status:
+    desc: Test GET /mcp/status endpoint
+    cmds:
+      - |
+        pwsh -Command "Invoke-RestMethod -Uri '{{.MCP_API_BASE}}/status' -Method GET | ConvertTo-Json -Depth 10"
+
+  test:tools:
+    desc: Test GET /mcp/tools endpoint
+    cmds:
+      - |
+        pwsh -Command "Invoke-RestMethod -Uri '{{.MCP_API_BASE}}/tools' -Method GET | ConvertTo-Json -Depth 10"
+
+  test:ping:
+    desc: Test POST /mcp/tool/ping endpoint
+    cmds:
+      - |
+        pwsh -Command "Invoke-RestMethod -Uri '{{.MCP_API_BASE}}/tool/ping' -Method POST -ContentType 'application/json' -Body '{}' | ConvertTo-Json -Depth 10"
+
+  test:get-actors:
+    desc: Test POST /mcp/tool/get_actors_in_level endpoint
+    cmds:
+      - |
+        pwsh -Command "Invoke-RestMethod -Uri '{{.MCP_API_BASE}}/tool/get_actors_in_level' -Method POST -ContentType 'application/json' -Body '{}' | ConvertTo-Json -Depth 5"
+
+  test:execute-python:
+    desc: Test POST /mcp/tool/execute_python endpoint (prints 1+1)
+    cmds:
+      - |
+        pwsh -Command "New-Item -Path '{{.TMP_DIR}}' -ItemType Directory -Force | Out-Null; @{script_content='print(1+1)'} | ConvertTo-Json | Out-File -Encoding utf8 -FilePath '{{.TMP_DIR}}\\test_payload.json'; Invoke-RestMethod -Uri '{{.MCP_API_BASE}}/tool/execute_python' -Method POST -ContentType 'application/json' -InFile '{{.TMP_DIR}}\\test_payload.json' | ConvertTo-Json -Depth 5"
+
+  test:all:
+    desc: Run all HTTP endpoint tests
+    cmds:
+      - task: test:status
+      - task: test:tools
+      - task: test:ping
+      - task: test:get-actors
+      - task: test:execute-python
+
+  # ========================================
+  # MCP Server Tasks (Python)
+  # ========================================
+
+  mcp-server:test:
     desc: Test the Python MCP server (connects to UE and runs ping)
     cmds:
       - uv run python scripts/test_mcp.py
 
-  mcp-server-run:
+  mcp-server:run:
     desc: Run the Python MCP server (local development)
     cmds:
       - uv run unreal-editor-mcp
 
-  mcp-server-run-github:
+  mcp-server:run-github:
     desc: Run the Python MCP server from GitHub (for testing published version)
     cmds:
       - uvx --from git+https://github.com/self-taught-code-tokushima/UnrealEditorToyMCP unreal-editor-mcp

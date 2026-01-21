@@ -19,7 +19,8 @@
       "mcp__serena-unrealwise",
       "WebSearch",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:dev.epicgames.com)"
+      "WebFetch(domain:dev.epicgames.com)",
+      "WebFetch(domain:taskfile.dev)"
     ]
   },
   "enableAllProjectMcpServers": true,
