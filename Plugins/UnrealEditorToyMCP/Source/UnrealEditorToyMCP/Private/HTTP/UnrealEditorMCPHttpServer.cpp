@@ -10,6 +10,7 @@
 #include "Engine/World.h"              // UWorld
 #include "GameFramework/Actor.h"       // AActor
 #include "Kismet/GameplayStatics.h"    // UGameplayStatics
+#include "MCPJsonHelpers.h"            // JSON helper functions
 
 
 FUnrealEditorMCPHttpServer::FUnrealEditorMCPHttpServer()
@@ -131,43 +132,10 @@ void FUnrealEditorMCPHttpServer::SetupRoutes()
 bool FUnrealEditorMCPHttpServer::HandleListTools(const FHttpServerRequest& Request,
                                                  const FHttpResultCallback& OnComplete) const
 {
-	const TSharedPtr<FJsonObject> ResponseJson = MakeShared<FJsonObject>();
-	TArray<TSharedPtr<FJsonValue>> ToolsArray;
+	FMCPToolsListResponse Response;
+	Response.tools = FMCPJsonHelpers::CommandsToToolInfoArray(CommandRegistry->GetAllCommands(), true);
 
-	// Dynamically generate tools list from registered commands
-	TArray<TSharedPtr<IEditorCommand>> AllCommands = CommandRegistry->GetAllCommands();
-	for (const TSharedPtr<IEditorCommand>& Command : AllCommands)
-	{
-		if (!Command.IsValid()) continue;
-
-		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), Command->GetName());
-		ToolJson->SetStringField(TEXT("description"), Command->GetDescription());
-
-		// Build parameters array
-		TArray<TSharedPtr<FJsonValue>> ParamsArray;
-		TArray<FCommandParameter> Parameters = Command->GetParameters();
-		for (const FCommandParameter& Param : Parameters)
-		{
-			TSharedPtr<FJsonObject> ParamJson = MakeShared<FJsonObject>();
-			ParamJson->SetStringField(TEXT("name"), Param.Name);
-			ParamJson->SetStringField(TEXT("type"), Param.Type);
-			ParamJson->SetBoolField(TEXT("required"), Param.bRequired);
-			ParamJson->SetStringField(TEXT("description"), Param.Description);
-			ParamsArray.Add(MakeShared<FJsonValueObject>(ParamJson));
-		}
-		ToolJson->SetArrayField(TEXT("parameters"), ParamsArray);
-
-		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
-	}
-
-	ResponseJson->SetArrayField(TEXT("tools"), ToolsArray);
-
-	FString JsonString;
-	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-	FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer);
-
-	OnComplete(CreateJsonResponse(JsonString));
+	OnComplete(FMCPJsonHelpers::CreateJsonResponse(Response));
 	return true;
 }
 
@@ -198,7 +166,7 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 	if (CommandName.IsEmpty())
 	{
 		UE_LOG(LogTemp, Error, TEXT("UnrealEditorMCP HTTP: Tool name is empty from path: %s"), *RelativePath);
-		OnComplete(CreateErrorResponse(
+		OnComplete(FMCPJsonHelpers::CreateErrorResponse(
 			TEXT("Tool name not specified. Use POST /mcp/tool/{toolname}"), EHttpServerResponseCodes::BadRequest));
 		return true;
 	}
@@ -216,7 +184,7 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 		if (TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(BodyString); !FJsonSerializer::Deserialize(Reader, ParamsJson))
 		{
 			UE_LOG(LogTemp, Error, TEXT("UnrealEditorMCP HTTP: Failed to parse JSON body: %s"), *BodyString);
-			OnComplete(CreateErrorResponse(TEXT("Invalid JSON body"), EHttpServerResponseCodes::BadRequest));
+			OnComplete(FMCPJsonHelpers::CreateErrorResponse(TEXT("Invalid JSON body"), EHttpServerResponseCodes::BadRequest));
 			return true;
 		}
 	}
@@ -225,7 +193,7 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 	if (!CommandRegistry->HasCommand(CommandName))
 	{
 		UE_LOG(LogTemp, Error, TEXT("UnrealEditorMCP HTTP: Unknown command: %s"), *CommandName);
-		OnComplete(CreateErrorResponse(
+		OnComplete(FMCPJsonHelpers::CreateErrorResponse(
 			FString::Printf(TEXT("Unknown command: %s"), *CommandName),
 			EHttpServerResponseCodes::NotFound));
 		return true;
@@ -239,14 +207,10 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 		          TSharedPtr<IEditorCommand> Command = CommandRegistry->GetCommand(CommandName);
 		          if (!Command.IsValid())
 		          {
-			          TSharedPtr<FJsonObject> ErrorJson = MakeShared<FJsonObject>();
-			          ErrorJson->SetBoolField(TEXT("success"), false);
-			          ErrorJson->SetStringField(TEXT("error"), TEXT("Command not found in registry"));
-
-			          FString JsonString;
-			          TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-			          FJsonSerializer::Serialize(ErrorJson.ToSharedRef(), Writer);
-			          OnComplete(CreateJsonResponse(JsonString));
+			          FMCPCommandResponse ErrorResponse;
+			          ErrorResponse.success = false;
+			          ErrorResponse.error = TEXT("Command not found in registry");
+			          OnComplete(FMCPJsonHelpers::CreateJsonResponse(ErrorResponse));
 			          return;
 		          }
 
@@ -254,28 +218,24 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 		          FString ResultString = Command->Execute(ParamsJson);
 
 		          // Build response
-		          TSharedPtr<FJsonObject> ResponseJson = MakeShared<FJsonObject>();
-		          TSharedPtr<FJsonObject> ResultJson;
+		          FMCPCommandResponse Response;
+		          TSharedPtr<FJsonObject> ResultJsonObject;
 		          TSharedRef<TJsonReader<>> ResultReader = TJsonReaderFactory<>::Create(ResultString);
 
-		          if (FJsonSerializer::Deserialize(ResultReader, ResultJson))
+		          if (FJsonSerializer::Deserialize(ResultReader, ResultJsonObject))
 		          {
-			          ResponseJson->SetBoolField(TEXT("success"), true);
-			          ResponseJson->SetStringField(TEXT("message"), TEXT("Command executed successfully"));
-			          ResponseJson->SetObjectField(TEXT("data"), ResultJson);
+			          Response.success = true;
+			          Response.message = TEXT("Command executed successfully");
+			          Response.data.JsonObject = ResultJsonObject;
 		          }
 		          else
 		          {
-			          ResponseJson->SetBoolField(TEXT("success"), false);
-			          ResponseJson->SetStringField(TEXT("error"), TEXT("Failed to parse command result"));
+			          Response.success = false;
+			          Response.error = TEXT("Failed to parse command result");
 		          }
 
-		          FString JsonString;
-		          TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-		          FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer);
-
 		          // Call the completion callback
-		          OnComplete(CreateJsonResponse(JsonString));
+		          OnComplete(FMCPJsonHelpers::CreateJsonResponse(Response));
 	          });
 
 	return true;
@@ -283,63 +243,16 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 
 bool FUnrealEditorMCPHttpServer::HandleStatus(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const
 {
-	TSharedPtr<FJsonObject> ResponseJson = MakeShared<FJsonObject>();
-	ResponseJson->SetStringField(TEXT("status"), TEXT("running"));
-	ResponseJson->SetNumberField(TEXT("httpPort"), ServerPort);
-	ResponseJson->SetNumberField(TEXT("socketPort"), 55557); // Socket server port
-	ResponseJson->SetStringField(TEXT("version"), TEXT("1.0.0"));
-	ResponseJson->SetNumberField(TEXT("toolCount"), CommandRegistry->GetCommandCount());
+	FMCPStatusResponse Response;
+	Response.status = TEXT("running");
+	Response.httpPort = ServerPort;
+	Response.socketPort = 55557;
+	Response.version = TEXT("1.0.0");
+	Response.toolCount = CommandRegistry->GetCommandCount();
+	Response.tools = FMCPJsonHelpers::CommandsToToolInfoArray(CommandRegistry->GetAllCommands(), false);
+	Response.projectName = FApp::GetProjectName();
+	Response.engineVersion = FEngineVersion::Current().ToString();
 
-	// Dynamically generate tools list from registered commands
-	TArray<TSharedPtr<FJsonValue>> ToolsArray;
-	TArray<TSharedPtr<IEditorCommand>> AllCommands = CommandRegistry->GetAllCommands();
-	for (const TSharedPtr<IEditorCommand>& Command : AllCommands)
-	{
-		if (!Command.IsValid()) continue;
-
-		TSharedPtr<FJsonObject> ToolJson = MakeShared<FJsonObject>();
-		ToolJson->SetStringField(TEXT("name"), Command->GetName());
-		ToolJson->SetStringField(TEXT("description"), Command->GetDescription());
-		ToolsArray.Add(MakeShared<FJsonValueObject>(ToolJson));
-	}
-	ResponseJson->SetArrayField(TEXT("tools"), ToolsArray);
-
-	// Add project and engine info
-	ResponseJson->SetStringField(TEXT("projectName"), FApp::GetProjectName());
-	ResponseJson->SetStringField(TEXT("engineVersion"), FEngineVersion::Current().ToString());
-
-	FString JsonString;
-	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-	FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer);
-
-	OnComplete(CreateJsonResponse(JsonString));
+	OnComplete(FMCPJsonHelpers::CreateJsonResponse(Response));
 	return true;
-}
-
-TUniquePtr<FHttpServerResponse> FUnrealEditorMCPHttpServer::CreateJsonResponse(
-	const FString& JsonContent, EHttpServerResponseCodes Code)
-{
-	TUniquePtr<FHttpServerResponse> Response = FHttpServerResponse::Create(JsonContent, TEXT("application/json"));
-	Response->Code = Code;
-
-	// Add CORS headers - restricted to localhost for security
-	Response->Headers.Add(TEXT("Access-Control-Allow-Origin"), {TEXT("http://localhost")});
-	Response->Headers.Add(TEXT("Access-Control-Allow-Methods"), {TEXT("GET, POST, OPTIONS")});
-	Response->Headers.Add(TEXT("Access-Control-Allow-Headers"), {TEXT("Content-Type")});
-
-	return Response;
-}
-
-TUniquePtr<FHttpServerResponse> FUnrealEditorMCPHttpServer::CreateErrorResponse(
-	const FString& Message, const EHttpServerResponseCodes Code)
-{
-	const TSharedPtr<FJsonObject> ErrorJson = MakeShared<FJsonObject>();
-	ErrorJson->SetBoolField(TEXT("success"), false);
-	ErrorJson->SetStringField(TEXT("error"), Message);
-
-	FString JsonString;
-	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-	FJsonSerializer::Serialize(ErrorJson.ToSharedRef(), Writer);
-
-	return CreateJsonResponse(JsonString, Code);
 }
