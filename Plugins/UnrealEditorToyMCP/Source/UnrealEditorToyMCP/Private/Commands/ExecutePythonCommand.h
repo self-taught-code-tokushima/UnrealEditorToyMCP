@@ -20,7 +20,7 @@ public:
 	virtual FString GetName() const override;
 	virtual FString GetDescription() const override;
 	virtual TArray<FCommandParameter> GetParameters() const override;
-	virtual FString Execute(const TSharedPtr<FJsonObject>& Params) override;
+	virtual FJsonObjectWrapper Execute(const TSharedPtr<FJsonObject>& Params) override;
 
 private:
 	/**

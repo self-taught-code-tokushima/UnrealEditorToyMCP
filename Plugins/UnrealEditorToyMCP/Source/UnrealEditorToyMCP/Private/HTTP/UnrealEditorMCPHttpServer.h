@@ -28,10 +28,6 @@ private:
 	bool HandleExecuteTool(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const;
 	bool HandleStatus(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const;
 
-	// Response helpers
-	static TUniquePtr<FHttpServerResponse> CreateJsonResponse(const FString& JsonContent, EHttpServerResponseCodes Code = EHttpServerResponseCodes::Ok);
-	static TUniquePtr<FHttpServerResponse> CreateErrorResponse(const FString& Message, EHttpServerResponseCodes Code = EHttpServerResponseCodes::BadRequest);
-
 	// HTTP infrastructure
 	TSharedPtr<IHttpRouter> HttpRouter;
 	FHttpRouteHandle ListToolsHandle;

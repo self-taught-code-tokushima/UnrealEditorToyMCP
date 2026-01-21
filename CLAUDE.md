@@ -7,7 +7,7 @@ Before generating ANY Python script and ANY C++ Code, you MUST query context7 to
 **Library ID for Unreal Engine API / Unreal Engine Blueprint API:** `websites/dev_epicgames_en-us_unreal-engine`
 **Library ID for Unreal Engine Python API:** `/radial-hks/unreal-python-stubhub` 
 
-## File Structure
+### CRITICAL: Always Query serena-self to find File Structure
 
 - use serena-self MCP
 
@@ -116,7 +116,70 @@ private:
 };
 ```
 
-## Build Commands
+## Build and Test Commands
+
+### IMPORTANT: Use Taskfile for Build and Testing
+
+This project uses [Task](https://taskfile.dev/) to manage build and test commands. **Always use the Taskfile commands instead of running build/test commands directly.**
+
+#### Configuration
+
+The Taskfile uses variables for environment-specific settings. If you need to customize paths or URLs, edit the `vars` section in `Taskfile.yml`:
+
+- `UE_ENGINE_PATH`: Path to Unreal Engine installation (default: `D:\UE\UE_5.7`)
+- `MCP_SERVER_URL`: MCP server URL (default: `http://localhost:3000`)
+- `PROJECT_NAME`: Unreal project name (default: `SampleProject`)
+
+#### Build the Plugin
+
+```bash
+# Build the plugin
+task build
+
+# Or use the explicit task name
+task build:plugin
+```
+
+This will build the UnrealEditorMCP plugin for the SampleProject.
+
+#### Test HTTP Endpoints
+
+**CRITICAL**: Before running any tests, ensure that Unreal Editor is running with the plugin loaded.
+
+```bash
+# Run all tests
+task test:all
+
+# Individual tests
+task test:status          # Test GET /mcp/status
+task test:tools           # Test GET /mcp/tools
+task test:ping            # Test POST /mcp/tool/ping
+task test:get-actors      # Test POST /mcp/tool/get_actors_in_level
+task test:execute-python  # Test POST /mcp/tool/execute_python
+```
+
+#### MCP Server (Python)
+
+```bash
+# Run the Python MCP server (local development)
+task mcp-server:run
+
+# Test the Python MCP server
+task mcp-server:test
+
+# Run from GitHub (testing published version)
+task mcp-server:run-github
+```
+
+#### List Available Tasks
+
+```bash
+task --list
+```
+
+### Manual Build Commands (For Reference Only)
+
+If you need to build manually without Task:
 
 ```bash
 # Build from command line

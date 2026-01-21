@@ -5,7 +5,8 @@
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Editor.h"
-#include "Dom/JsonValue.h"
+#include "JsonObjectConverter.h"
+#include "MCPJsonStructs.h"
 
 FString FGetActorsInLevelCommand::GetName() const
 {
@@ -23,10 +24,9 @@ TArray<FCommandParameter> FGetActorsInLevelCommand::GetParameters() const
 	return TArray<FCommandParameter>();
 }
 
-FString FGetActorsInLevelCommand::Execute(const TSharedPtr<FJsonObject>& Params)
+FJsonObjectWrapper FGetActorsInLevelCommand::Execute(const TSharedPtr<FJsonObject>& Params)
 {
-	TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
-	TArray<TSharedPtr<FJsonValue>> ActorsArray;
+	FGetActorsInLevelCommandResponse Response;
 
 	UWorld* EditorWorld = nullptr;
 	if (GEditor)
@@ -43,52 +43,47 @@ FString FGetActorsInLevelCommand::Execute(const TSharedPtr<FJsonObject>& Params)
 		{
 			if (!Actor) continue;
 
-			TSharedPtr<FJsonObject> ActorJson = BuildActorJson(Actor);
-			ActorsArray.Add(MakeShared<FJsonValueObject>(ActorJson));
+			FMCPActorInfo ActorInfo = BuildActorInfo(Actor);
+			Response.actors.Add(ActorInfo);
 		}
 
-		Result->SetBoolField(TEXT("success"), true);
-		Result->SetArrayField(TEXT("actors"), ActorsArray);
-		Result->SetNumberField(TEXT("count"), ActorsArray.Num());
+		Response.success = true;
+		Response.count = Response.actors.Num();
 	}
 	else
 	{
-		Result->SetBoolField(TEXT("success"), false);
-		Result->SetStringField(TEXT("error"), TEXT("No editor world available"));
+		Response.success = false;
+		Response.error = TEXT("No editor world available");
 	}
 
-	return SerializeJson(Result);
+	FJsonObjectWrapper Wrapper;
+	Wrapper.JsonObject = FJsonObjectConverter::UStructToJsonObject(Response);
+	return Wrapper;
 }
 
-TSharedPtr<FJsonObject> FGetActorsInLevelCommand::BuildActorJson(AActor* Actor) const
+FMCPActorInfo FGetActorsInLevelCommand::BuildActorInfo(AActor* Actor) const
 {
-	TSharedPtr<FJsonObject> ActorJson = MakeShared<FJsonObject>();
-	ActorJson->SetStringField(TEXT("name"), Actor->GetName());
-	ActorJson->SetStringField(TEXT("class"), Actor->GetClass()->GetName());
+	FMCPActorInfo ActorInfo;
+	ActorInfo.name = Actor->GetName();
+	ActorInfo.className = Actor->GetClass()->GetName();
 
 	// Location
 	FVector Location = Actor->GetActorLocation();
-	TSharedPtr<FJsonObject> LocationJson = MakeShared<FJsonObject>();
-	LocationJson->SetNumberField(TEXT("x"), Location.X);
-	LocationJson->SetNumberField(TEXT("y"), Location.Y);
-	LocationJson->SetNumberField(TEXT("z"), Location.Z);
-	ActorJson->SetObjectField(TEXT("location"), LocationJson);
+	ActorInfo.location.x = Location.X;
+	ActorInfo.location.y = Location.Y;
+	ActorInfo.location.z = Location.Z;
 
 	// Rotation
 	FRotator Rotation = Actor->GetActorRotation();
-	TSharedPtr<FJsonObject> RotationJson = MakeShared<FJsonObject>();
-	RotationJson->SetNumberField(TEXT("pitch"), Rotation.Pitch);
-	RotationJson->SetNumberField(TEXT("yaw"), Rotation.Yaw);
-	RotationJson->SetNumberField(TEXT("roll"), Rotation.Roll);
-	ActorJson->SetObjectField(TEXT("rotation"), RotationJson);
+	ActorInfo.rotation.pitch = Rotation.Pitch;
+	ActorInfo.rotation.yaw = Rotation.Yaw;
+	ActorInfo.rotation.roll = Rotation.Roll;
 
 	// Scale
 	FVector Scale = Actor->GetActorScale3D();
-	TSharedPtr<FJsonObject> ScaleJson = MakeShared<FJsonObject>();
-	ScaleJson->SetNumberField(TEXT("x"), Scale.X);
-	ScaleJson->SetNumberField(TEXT("y"), Scale.Y);
-	ScaleJson->SetNumberField(TEXT("z"), Scale.Z);
-	ActorJson->SetObjectField(TEXT("scale"), ScaleJson);
+	ActorInfo.scale.x = Scale.X;
+	ActorInfo.scale.y = Scale.Y;
+	ActorInfo.scale.z = Scale.Z;
 
-	return ActorJson;
+	return ActorInfo;
 }

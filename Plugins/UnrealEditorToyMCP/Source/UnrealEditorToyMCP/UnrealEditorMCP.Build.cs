@@ -40,6 +40,7 @@ public class UnrealEditorMCP : ModuleRules
 				"EditorSubsystem",  // UEditorSubsystem
 				"HTTPServer",  // HttpServerModule
 				"Json", // JSON parsing
+				"JsonUtilities", // USTRUCT <-> JSON conversion
 				"UnrealEd"  // GEditor access
 			]
 		);
