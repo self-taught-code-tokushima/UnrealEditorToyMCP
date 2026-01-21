@@ -7,7 +7,7 @@ Before generating ANY Python script and ANY C++ Code, you MUST query context7 to
 **Library ID for Unreal Engine API / Unreal Engine Blueprint API:** `websites/dev_epicgames_en-us_unreal-engine`
 **Library ID for Unreal Engine Python API:** `/radial-hks/unreal-python-stubhub` 
 
-## File Structure
+### CRITICAL: Always Query serena-self to find File Structure
 
 - use serena-self MCP
 
