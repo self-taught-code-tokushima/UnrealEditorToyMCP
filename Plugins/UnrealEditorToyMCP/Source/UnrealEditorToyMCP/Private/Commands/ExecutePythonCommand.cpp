@@ -7,6 +7,8 @@
 #include "Misc/FileHelper.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
+#include "JsonObjectConverter.h"
+#include "MCPJsonStructs.h"
 
 FString FExecutePythonCommand::GetName() const
 {
@@ -36,25 +38,31 @@ TArray<FCommandParameter> FExecutePythonCommand::GetParameters() const
 	return Parameters;
 }
 
-FString FExecutePythonCommand::Execute(const TSharedPtr<FJsonObject>& Params)
+FJsonObjectWrapper FExecutePythonCommand::Execute(const TSharedPtr<FJsonObject>& Params)
 {
-	const TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+	FExecutePythonCommandResponse Response;
 
 	// 1. Validate parameters
 	if (!Params.IsValid())
 	{
-		Result->SetBoolField(TEXT("success"), false);
-		Result->SetStringField(TEXT("error"), TEXT("Missing parameters"));
-		return SerializeJson(Result);
+		Response.success = false;
+		Response.error = TEXT("Missing parameters");
+
+		FJsonObjectWrapper Wrapper;
+		Wrapper.JsonObject = FJsonObjectConverter::UStructToJsonObject(Response);
+		return Wrapper;
 	}
 
 	// 2. Get script_content (required)
 	FString ScriptContent;
 	if (!Params->TryGetStringField(TEXT("script_content"), ScriptContent) || ScriptContent.IsEmpty())
 	{
-		Result->SetBoolField(TEXT("success"), false);
-		Result->SetStringField(TEXT("error"), TEXT("Missing or empty 'script_content' parameter"));
-		return SerializeJson(Result);
+		Response.success = false;
+		Response.error = TEXT("Missing or empty 'script_content' parameter");
+
+		FJsonObjectWrapper Wrapper;
+		Wrapper.JsonObject = FJsonObjectConverter::UStructToJsonObject(Response);
+		return Wrapper;
 	}
 
 	// 3. Get script_name (optional, auto-generate if not provided)
@@ -69,34 +77,46 @@ FString FExecutePythonCommand::Execute(const TSharedPtr<FJsonObject>& Params)
 	const FString ScriptDir = EnsurePythonScriptDirectory();
 	if (ScriptDir.IsEmpty())
 	{
-		Result->SetBoolField(TEXT("success"), false);
-		Result->SetStringField(TEXT("error"), TEXT("Failed to create Python script directory"));
-		return SerializeJson(Result);
+		Response.success = false;
+		Response.error = TEXT("Failed to create Python script directory");
+
+		FJsonObjectWrapper Wrapper;
+		Wrapper.JsonObject = FJsonObjectConverter::UStructToJsonObject(Response);
+		return Wrapper;
 	}
 
 	// 5. Write a script to file
 	const FString ScriptPath = GeneratePythonScriptPath(ScriptName);
 	if (!FFileHelper::SaveStringToFile(ScriptContent, *ScriptPath))
 	{
-		Result->SetBoolField(TEXT("success"), false);
-		Result->SetStringField(TEXT("error"), TEXT("Failed to write script file"));
-		return SerializeJson(Result);
+		Response.success = false;
+		Response.error = TEXT("Failed to write script file");
+
+		FJsonObjectWrapper Wrapper;
+		Wrapper.JsonObject = FJsonObjectConverter::UStructToJsonObject(Response);
+		return Wrapper;
 	}
 
 	// 6. Check GEditor availability
 	if (!GEditor)
 	{
-		Result->SetBoolField(TEXT("success"), false);
-		Result->SetStringField(TEXT("error"), TEXT("Editor not available"));
-		return SerializeJson(Result);
+		Response.success = false;
+		Response.error = TEXT("Editor not available");
+
+		FJsonObjectWrapper Wrapper;
+		Wrapper.JsonObject = FJsonObjectConverter::UStructToJsonObject(Response);
+		return Wrapper;
 	}
 
 	UWorld* World = GEditor->GetEditorWorldContext().World();
 	if (!World)
 	{
-		Result->SetBoolField(TEXT("success"), false);
-		Result->SetStringField(TEXT("error"), TEXT("No active world"));
-		return SerializeJson(Result);
+		Response.success = false;
+		Response.error = TEXT("No active world");
+
+		FJsonObjectWrapper Wrapper;
+		Wrapper.JsonObject = FJsonObjectConverter::UStructToJsonObject(Response);
+		return Wrapper;
 	}
 
 	// 7. Execute Python script via console command
@@ -109,16 +129,18 @@ FString FExecutePythonCommand::Execute(const TSharedPtr<FJsonObject>& Params)
 	const bool bHasError = DetectPythonError(Output);
 
 	// 9. Build response
-	Result->SetBoolField(TEXT("success"), !bHasError);
-	Result->SetStringField(TEXT("output"), Output);
-	Result->SetStringField(TEXT("script_path"), ScriptPath);
+	Response.success = !bHasError;
+	Response.output = Output;
+	Response.script_path = ScriptPath;
 
 	if (bHasError)
 	{
-		Result->SetStringField(TEXT("error"), TEXT("Python script execution failed (see output)"));
+		Response.error = TEXT("Python script execution failed (see output)");
 	}
 
-	return SerializeJson(Result);
+	FJsonObjectWrapper Wrapper;
+	Wrapper.JsonObject = FJsonObjectConverter::UStructToJsonObject(Response);
+	return Wrapper;
 }
 
 FString FExecutePythonCommand::EnsurePythonScriptDirectory() const

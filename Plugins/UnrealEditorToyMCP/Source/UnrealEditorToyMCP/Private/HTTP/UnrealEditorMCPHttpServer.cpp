@@ -202,7 +202,7 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 	AsyncTask(ENamedThreads::GameThread,
 	          [this, CommandName, ParamsJson, OnComplete]()
 	          {
-		          // Get command from a registry
+		          // Get command from registry
 		          TSharedPtr<IEditorCommand> Command = CommandRegistry->GetCommand(CommandName);
 		          if (!Command.IsValid())
 		          {
@@ -213,25 +213,14 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 			          return;
 		          }
 
-		          // Execute command
-		          const FString ResultString = Command->Execute(ParamsJson);
+		          // Execute command (returns FJsonObjectWrapper directly)
+		          FJsonObjectWrapper ResultWrapper = Command->Execute(ParamsJson);
 
 		          // Build response
 		          FMCPCommandResponse Response;
-		          TSharedPtr<FJsonObject> ResultJsonObject;
-		          TSharedRef<TJsonReader<>> ResultReader = TJsonReaderFactory<>::Create(ResultString);
-
-		          if (FJsonSerializer::Deserialize(ResultReader, ResultJsonObject))
-		          {
-			          Response.success = true;
-			          Response.message = TEXT("Command executed successfully");
-			          Response.data.JsonObject = ResultJsonObject;
-		          }
-		          else
-		          {
-			          Response.success = false;
-			          Response.error = TEXT("Failed to parse command result");
-		          }
+		          Response.success = true;
+		          Response.message = TEXT("Command executed successfully");
+		          Response.data = ResultWrapper;
 
 		          // Call the completion callback
 		          OnComplete(FMCPJsonHelpers::CreateJsonResponse(Response));

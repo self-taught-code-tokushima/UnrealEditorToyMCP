@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "JsonObjectWrapper.h"
 
 /**
  * Parameter definition for a command
@@ -56,15 +57,7 @@ public:
 	/**
 	 * Execute the command with given parameters
 	 * @param Params JSON object containing command parameters
-	 * @return JSON string with command result
+	 * @return FJsonObjectWrapper with command result
 	 */
-	virtual FString Execute(const TSharedPtr<FJsonObject>& Params) = 0;
-
-protected:
-	/**
-	 * Helper method to serialize JSON object to string
-	 * @param JsonObject JSON object to serialize
-	 * @return Serialized JSON string
-	 */
-	static FString SerializeJson(const TSharedPtr<FJsonObject>& JsonObject);
+	virtual FJsonObjectWrapper Execute(const TSharedPtr<FJsonObject>& Params) = 0;
 };

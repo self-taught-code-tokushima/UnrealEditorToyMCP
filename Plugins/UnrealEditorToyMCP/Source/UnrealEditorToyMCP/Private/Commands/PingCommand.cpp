@@ -1,6 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "PingCommand.h"
+#include "JsonObjectConverter.h"
+#include "MCPJsonStructs.h"
 
 FString FPingCommand::GetName() const
 {
@@ -18,9 +20,12 @@ TArray<FCommandParameter> FPingCommand::GetParameters() const
 	return TArray<FCommandParameter>();
 }
 
-FString FPingCommand::Execute(const TSharedPtr<FJsonObject>& Params)
+FJsonObjectWrapper FPingCommand::Execute(const TSharedPtr<FJsonObject>& Params)
 {
-	TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
-	Result->SetStringField(TEXT("message"), TEXT("pong"));
-	return SerializeJson(Result);
+	FPingCommandResponse Response;
+	Response.message = TEXT("pong");
+
+	FJsonObjectWrapper Wrapper;
+	Wrapper.JsonObject = FJsonObjectConverter::UStructToJsonObject(Response);
+	return Wrapper;
 }

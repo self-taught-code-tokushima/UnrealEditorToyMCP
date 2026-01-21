@@ -111,3 +111,109 @@ struct FMCPErrorResponse
 	UPROPERTY()
 	FString error;
 };
+
+// ============================================================================
+// Command レスポンス用の構造体
+// ============================================================================
+
+// Vector3 (Location, Scale など用)
+USTRUCT()
+struct FMCPVector3
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	double x = 0.0;
+
+	UPROPERTY()
+	double y = 0.0;
+
+	UPROPERTY()
+	double z = 0.0;
+};
+
+// Rotator (Rotation 用)
+USTRUCT()
+struct FMCPRotator
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	double pitch = 0.0;
+
+	UPROPERTY()
+	double yaw = 0.0;
+
+	UPROPERTY()
+	double roll = 0.0;
+};
+
+// Actor 情報
+USTRUCT()
+struct FMCPActorInfo
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString name;
+
+	UPROPERTY()
+	FString className;
+
+	UPROPERTY()
+	FMCPVector3 location;
+
+	UPROPERTY()
+	FMCPRotator rotation;
+
+	UPROPERTY()
+	FMCPVector3 scale;
+};
+
+// ping コマンドのレスポンス
+USTRUCT()
+struct FPingCommandResponse
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString message;
+};
+
+// get_actors_in_level コマンドのレスポンス
+USTRUCT()
+struct FGetActorsInLevelCommandResponse
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool success = true;
+
+	UPROPERTY()
+	TArray<FMCPActorInfo> actors;
+
+	UPROPERTY()
+	int32 count = 0;
+
+	UPROPERTY()
+	FString error;
+};
+
+// execute_python コマンドのレスポンス
+USTRUCT()
+struct FExecutePythonCommandResponse
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool success = true;
+
+	UPROPERTY()
+	FString output;
+
+	UPROPERTY()
+	FString script_path;
+
+	UPROPERTY()
+	FString error;
+};

@@ -20,13 +20,13 @@ public:
 	virtual FString GetName() const override;
 	virtual FString GetDescription() const override;
 	virtual TArray<FCommandParameter> GetParameters() const override;
-	virtual FString Execute(const TSharedPtr<FJsonObject>& Params) override;
+	virtual FJsonObjectWrapper Execute(const TSharedPtr<FJsonObject>& Params) override;
 
 private:
 	/**
-	 * Build JSON object for a single actor
-	 * @param Actor Actor to convert to JSON
-	 * @return JSON object containing actor information
+	 * Build actor info struct for a single actor
+	 * @param Actor Actor to convert
+	 * @return Actor information struct
 	 */
-	TSharedPtr<FJsonObject> BuildActorJson(AActor* Actor) const;
+	struct FMCPActorInfo BuildActorInfo(AActor* Actor) const;
 };
