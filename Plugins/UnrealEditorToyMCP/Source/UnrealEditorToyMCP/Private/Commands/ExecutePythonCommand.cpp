@@ -38,7 +38,7 @@ TArray<FCommandParameter> FExecutePythonCommand::GetParameters() const
 
 FString FExecutePythonCommand::Execute(const TSharedPtr<FJsonObject>& Params)
 {
-	TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+	const TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
 
 	// 1. Validate parameters
 	if (!Params.IsValid())
@@ -66,7 +66,7 @@ FString FExecutePythonCommand::Execute(const TSharedPtr<FJsonObject>& Params)
 	}
 
 	// 4. Ensure directory exists
-	FString ScriptDir = EnsurePythonScriptDirectory();
+	const FString ScriptDir = EnsurePythonScriptDirectory();
 	if (ScriptDir.IsEmpty())
 	{
 		Result->SetBoolField(TEXT("success"), false);
@@ -74,8 +74,8 @@ FString FExecutePythonCommand::Execute(const TSharedPtr<FJsonObject>& Params)
 		return SerializeJson(Result);
 	}
 
-	// 5. Write script to file
-	FString ScriptPath = GeneratePythonScriptPath(ScriptName);
+	// 5. Write a script to file
+	const FString ScriptPath = GeneratePythonScriptPath(ScriptName);
 	if (!FFileHelper::SaveStringToFile(ScriptContent, *ScriptPath))
 	{
 		Result->SetBoolField(TEXT("success"), false);
@@ -105,8 +105,8 @@ FString FExecutePythonCommand::Execute(const TSharedPtr<FJsonObject>& Params)
 	GEditor->Exec(World, *PyScriptContent, OutputDevice);
 
 	// 8. Get output and detect errors
-	FString Output = OutputDevice.GetTrimmedOutput();
-	bool bHasError = DetectPythonError(Output);
+	const FString Output = OutputDevice.GetTrimmedOutput();
+	const bool bHasError = DetectPythonError(Output);
 
 	// 9. Build response
 	Result->SetBoolField(TEXT("success"), !bHasError);

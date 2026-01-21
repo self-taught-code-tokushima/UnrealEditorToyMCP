@@ -9,7 +9,6 @@
 #include "Editor.h"                    // GEditor
 #include "Engine/World.h"              // UWorld
 #include "GameFramework/Actor.h"       // AActor
-#include "Kismet/GameplayStatics.h"    // UGameplayStatics
 #include "MCPJsonHelpers.h"            // JSON helper functions
 
 
@@ -142,21 +141,21 @@ bool FUnrealEditorMCPHttpServer::HandleListTools(const FHttpServerRequest& Reque
 bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Request,
                                                    const FHttpResultCallback& OnComplete) const
 {
-	// 1. Extract tool name from path: /mcp/tool/{name}
+	// 1. Extract the tool name from a path: /mcp/tool/{name}
 	FString RelativePath = Request.RelativePath.GetPath();
 	FString CommandName;
 
 	// Debug log to see what path we're receiving
 	UE_LOG(LogTemp, Display, TEXT("UnrealEditorMCP HTTP: Received path: %s"), *RelativePath);
 
-	// Parse tool name from path (handle different path formats)
+	// Parse tool name from a path (handle different path formats)
 	if (RelativePath.StartsWith(TEXT("/mcp/tool/")))
 	{
 		CommandName = RelativePath.RightChop(10); // Remove "/mcp/tool/"
 	}
 	else if (RelativePath.StartsWith(TEXT("/")))
 	{
-		CommandName = RelativePath.RightChop(1); // Remove leading "/"
+		CommandName = RelativePath.RightChop(1); // Remove the leading "/"
 	}
 	else
 	{
@@ -189,7 +188,7 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 		}
 	}
 
-	// 3. Check if command exists
+	// 3. Check if the command exists
 	if (!CommandRegistry->HasCommand(CommandName))
 	{
 		UE_LOG(LogTemp, Error, TEXT("UnrealEditorMCP HTTP: Unknown command: %s"), *CommandName);
@@ -203,7 +202,7 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 	AsyncTask(ENamedThreads::GameThread,
 	          [this, CommandName, ParamsJson, OnComplete]()
 	          {
-		          // Get command from registry
+		          // Get command from a registry
 		          TSharedPtr<IEditorCommand> Command = CommandRegistry->GetCommand(CommandName);
 		          if (!Command.IsValid())
 		          {
@@ -215,7 +214,7 @@ bool FUnrealEditorMCPHttpServer::HandleExecuteTool(const FHttpServerRequest& Req
 		          }
 
 		          // Execute command
-		          FString ResultString = Command->Execute(ParamsJson);
+		          const FString ResultString = Command->Execute(ParamsJson);
 
 		          // Build response
 		          FMCPCommandResponse Response;

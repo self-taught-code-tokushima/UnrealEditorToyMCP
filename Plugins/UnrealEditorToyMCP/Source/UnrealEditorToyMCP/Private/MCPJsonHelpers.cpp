@@ -3,7 +3,7 @@
 
 TUniquePtr<FHttpServerResponse> FMCPJsonHelpers::CreateErrorResponse(
 	const FString& ErrorMessage,
-	EHttpServerResponseCodes Code)
+	const EHttpServerResponseCodes Code)
 {
 	FMCPErrorResponse ErrorResponse;
 	ErrorResponse.error = ErrorMessage;

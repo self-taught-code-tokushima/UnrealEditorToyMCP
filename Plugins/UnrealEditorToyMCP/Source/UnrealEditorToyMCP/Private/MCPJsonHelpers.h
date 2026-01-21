@@ -24,7 +24,7 @@ public:
 	template<typename StructType>
 	static TUniquePtr<FHttpServerResponse> CreateJsonResponse(
 		const StructType& Struct,
-		EHttpServerResponseCodes Code = EHttpServerResponseCodes::Ok)
+		const EHttpServerResponseCodes Code = EHttpServerResponseCodes::Ok)
 	{
 		FString JsonString;
 		if (!StructToJsonString(Struct, JsonString))
